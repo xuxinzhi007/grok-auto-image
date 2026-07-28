@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Grok 批量下载图片",
+  "version": "1.0",
+  "description": "一键下载 grok.com/files 页面中的所有图片",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://grok.com/*",
+    "https://assets.grok.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "批量下载 Grok 图片"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://grok.com/files*"],
+      "js": ["content.js"]
+    }
+  ]
+}
