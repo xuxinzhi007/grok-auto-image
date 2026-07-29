@@ -30,6 +30,10 @@
 - 复现步骤与期望行为
 - 若相关：扩展或页面控制台报错
 
+## 发布
+
+打包 ZIP、GitHub Release、Chrome 商店清单见 [docs/PUBLISHING.md](./docs/PUBLISHING.md)。
+
 ## 行为准则
 
 请保持友善、就事论事。不接受骚扰、恶意破坏或明显违规用途相关的贡献。
