@@ -9,7 +9,7 @@ manifest.json
 background.js      # 下载任务、校验、通知
 content.js         # 页面提取与自动滚动
 popup.html / js    # 弹窗 UI
-icons/             # 扩展图标
+icons/icon.png     # 扩展图标（128x128）
 LICENSE            # MIT
 PRIVACY.md         # 隐私政策（商店可引用）
 CONTRIBUTING.md    # 贡献指南
@@ -35,8 +35,8 @@ $fs = [System.IO.File]::Open((Join-Path (Get-Location) $zip), [System.IO.FileMod
 $archive = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
 $files = @(
   'manifest.json','background.js','content.js','popup.html','popup.js',
-  'LICENSE','README.md','PRIVACY.md',
-  'icons/icon16.png','icons/icon32.png','icons/icon48.png','icons/icon128.png'
+  'zip-store.js','offscreen.html','offscreen.js','icons/icon.png',
+  'LICENSE','README.md','PRIVACY.md'
 )
 foreach ($rel in $files) {
   $src = Join-Path (Get-Location) ($rel -replace '/','\')

@@ -20,8 +20,10 @@
     }
     * { box-sizing: border-box; }
     body {
-      width: 320px;
-      margin: 0;
+      width: auto;
+      min-width: 280px;
+      max-width: 420px;
+      margin: 0 auto;
       padding: 16px;
       font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--text);
@@ -44,13 +46,26 @@
       font-size: 13px;
       color: var(--muted);
       margin-bottom: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .info-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
     }
     .info strong {
       color: var(--text);
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 700;
     }
     .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .actions-row {
       display: flex;
       gap: 8px;
     }
@@ -144,10 +159,20 @@
 <body>
   <h1>Grok 批量下载</h1>
   <div class="info">
-    当前页面可下载 <strong id="count">0</strong> 张图片
+    <div class="info-row">
+      <span>页面图片</span>
+      <strong id="count">0</strong>
+    </div>
+    <div class="info-row">
+      <span>已勾选</span>
+      <strong id="selectedCount">0</strong>
+    </div>
   </div>
   <div class="actions">
-    <button id="downloadBtn" type="button">下载全部</button>
+    <div class="actions-row">
+      <button id="downloadSelectedBtn" type="button">下载已选</button>
+      <button id="downloadBtn" class="secondary" type="button">下载全部</button>
+    </div>
     <button id="cancelBtn" class="danger" type="button">取消</button>
   </div>
   <div id="progressWrap" class="progress-wrap" aria-hidden="true">
@@ -161,7 +186,10 @@
   </div>
   <div id="status" role="status" aria-live="polite"></div>
   <div class="hint">
-    下载前会自动滚动加载更多图片<br>
+    点扩展图标会打开右侧边栏，点页面也不会收起<br>
+    先在页面勾选文件，再点「下载已选」<br>
+    多张会打包成 <strong>1 个 ZIP</strong> 一次性下载<br>
+    「下载全部」会自动滚动加载更多图片<br>
     文件保存到下载目录下的 <code>grok_images</code><br>
     <a id="openFiles" href="https://grok.com/files" target="_blank" rel="noopener noreferrer">打开 grok.com/files</a>
   </div>
