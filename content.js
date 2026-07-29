@@ -140,7 +140,6 @@ function isSelectAllControl(el) {
   const label = `${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.textContent || ''}`.toLowerCase();
   if (/全选|select all|selectall/.test(label)) return true;
   if (el.closest('thead, [role="columnheader"]')) return true;
-  // 工具条「已选择 N」附近的全选，通常同一行没有文件缩略图
   const bar = el.closest('header, [class*="toolbar" i], [class*="Toolbar"]');
   if (bar && !bar.querySelector(`img[src*="${ASSET_HOST}"]`)) return true;
   return false;
@@ -155,7 +154,6 @@ function findRowForAssetImg(img) {
     );
     if (checks && checks.length) {
       best = node;
-      // 再往上一点通常是整行；若继续扩大仍只有一张资产图，优先更大行
       const parent = node.parentElement;
       if (parent) {
         const assetImgs = parent.querySelectorAll?.(`img[src*="${ASSET_HOST}"], img[srcset*="${ASSET_HOST}"]`) || [];
@@ -192,7 +190,6 @@ function extractSelectedImageUrls() {
   const seen = new Set();
   const selectedRows = new Set();
 
-  // 主策略：从资产图反查所在行，再判断该行是否勾选
   const imgs = queryDeep(`img[src*="${ASSET_HOST}"], img[srcset*="${ASSET_HOST}"]`);
   imgs.forEach((img) => {
     const row = findRowForAssetImg(img);
@@ -202,7 +199,6 @@ function extractSelectedImageUrls() {
     }
   });
 
-  // 补充：直接找已勾选控件再扩行
   if (!urls.length) {
     const checked = [
       ...queryDeep('input[type="checkbox"]:checked'),
@@ -216,7 +212,6 @@ function extractSelectedImageUrls() {
       let node = el;
       for (let i = 0; i < 12 && node; i++) {
         const assetImgs = node.querySelectorAll?.(`img[src*="${ASSET_HOST}"], img[srcset*="${ASSET_HOST}"]`) || [];
-        // 避免把整页容器当成一行
         if (assetImgs.length === 1) {
           selectedRows.add(node);
           collectUrlsFromRoot(node, urls, seen);
@@ -235,7 +230,6 @@ function extractSelectedImageUrls() {
 }
 
 function getPageSelectionHint() {
-  // 优先读工具条/顶栏文案，避免正文里其它数字干扰
   const candidates = document.querySelectorAll('header, [role="toolbar"], [class*="toolbar" i], [class*="Toolbar"], body');
   for (const root of candidates) {
     const text = root?.innerText || '';
@@ -250,7 +244,7 @@ function getPageSelectionHint() {
 function getSelectionSummary() {
   const pageSelected = getPageSelectionHint();
 
-  // 页面「已选择 N」是权威来源（含 0）。切换列表/取消勾选后以此为准，避免误判。
+  // 页面「已选择 N」是权威来源（含 0）
   if (pageSelected === 0) {
     return {
       urls: [],
