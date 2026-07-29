@@ -1,6 +1,12 @@
 # Grok 批量下载图片
 
-Chrome / Edge Manifest V3 扩展：在 [grok.com/files](https://grok.com/files) 自动滚动加载并批量下载 `assets.grok.com` 图片。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Manifest](https://img.shields.io/badge/Manifest-V3-blue.svg)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)](./manifest.json)
+
+Chrome / Edge **Manifest V3** 开源扩展：在 [grok.com/files](https://grok.com/files) 自动滚动加载，并批量下载 `assets.grok.com` 图片。
+
+> **免责声明：** 本项目为第三方工具，与 xAI / Grok 无关。请遵守 grok.com 服务条款与当地法律，仅下载你有权保存的内容。使用风险自负。
 
 ## 功能
 
@@ -18,6 +24,8 @@ Chrome / Edge Manifest V3 扩展：在 [grok.com/files](https://grok.com/files) 
 3. 点击「加载已解压的扩展程序」
 4. 选择本仓库根目录（包含 `manifest.json` 的文件夹）
 5. 打开 https://grok.com/files ，点击工具栏图标使用
+
+也可从 [GitHub Releases](https://github.com/xuxinzhi007/grok-auto-image/releases) 下载发布包 ZIP，解压后按同样方式加载。
 
 ## 使用说明
 
@@ -37,22 +45,25 @@ Chrome / Edge Manifest V3 扩展：在 [grok.com/files](https://grok.com/files) 
 | `https://grok.com/*` | 与 files 页面交互 |
 | `https://assets.grok.com/*` | 下载图片资源 |
 
-本扩展不收集、不上传任何用户数据。
+本扩展**不收集、不上传**任何用户数据。详见 [PRIVACY.md](./PRIVACY.md)。
 
-## Chrome 网上应用店上架清单
+## 打包发布 ZIP
+
+```powershell
+Compress-Archive -Path manifest.json,background.js,content.js,popup.html,popup.js,icons,LICENSE,README.md,PRIVACY.md -DestinationPath grok-auto-image-1.1.0.zip -Force
+```
+
+上传到 GitHub Release 或 Chrome 网上应用店时，ZIP 根目录需直接包含 `manifest.json`（不要多包一层文件夹，勿含 `.git` / `.pem`）。
+
+## Chrome 网上应用店
 
 - [x] Manifest V3
 - [x] 16 / 32 / 48 / 128 图标
-- [x] 权限最小化与用途说明（见上）
-- [ ] 准备商店截图（弹窗 + files 页面）
-- [ ] 准备隐私政策 URL（可写明「仅本地下载，无服务器」）
-- [ ] 打包：Chrome 扩展页 →「打包扩展程序」，或上传 ZIP（根目录含 `manifest.json`，勿含 `.git`）
+- [x] 权限说明与 [隐私政策](./PRIVACY.md)
+- [ ] 商店截图（弹窗 + files 页面）
+- [ ] 开发者账号注册与审核提交
 
-打包 ZIP 示例（PowerShell）：
-
-```powershell
-Compress-Archive -Path manifest.json,background.js,content.js,popup.html,popup.js,icons -DestinationPath grok-auto-image-1.1.0.zip -Force
-```
+隐私政策可使用本仓库中 `PRIVACY.md` 的 GitHub 页面链接（需先 push 到公开仓库）。
 
 ## 目录结构
 
@@ -62,9 +73,24 @@ background.js      # 下载任务、校验、通知
 content.js         # 页面提取与自动滚动
 popup.html / js    # 弹窗 UI
 icons/             # 扩展图标
+LICENSE            # MIT
+PRIVACY.md         # 隐私政策
+CONTRIBUTING.md    # 贡献指南
+SECURITY.md        # 安全披露
+RELEASE_NOTES.md   # 版本说明
 ```
+
+## 贡献
+
+欢迎提 Issue / PR，请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。安全问题见 [SECURITY.md](./SECURITY.md)。
 
 ## 版本
 
-- `1.1.0` — 生产向优化：滚动加载、进度/取消、URL 白名单、通知、图标
-- `1.0` — 初版 MVP
+详见 [RELEASE_NOTES.md](./RELEASE_NOTES.md)。
+
+- `1.1.0` — 生产向优化：滚动加载、进度/取消、URL 白名单、通知、开源文档
+- `1.0.0` — 初版 MVP
+
+## License
+
+[MIT](./LICENSE) © 2026 xinzhi.xu

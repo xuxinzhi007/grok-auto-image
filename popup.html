@@ -1,74 +1,170 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            width: 280px;
-            padding: 16px;
-            font-family: "Microsoft YaHei", Arial, sans-serif;
-            margin: 0;
-        }
-        h3 {
-            margin: 0 0 12px 0;
-            font-size: 16px;
-            color: #1a1a1a;
-        }
-        .info {
-            background: #f5f5f5;
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 12px;
-        }
-        .info strong {
-            color: #1a1a1a;
-            font-size: 18px;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #1a73e8;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover {
-            background: #1557b0;
-        }
-        button:disabled {
-            background: #a0a0a0;
-            cursor: not-allowed;
-        }
-        #status {
-            margin-top: 10px;
-            font-size: 13px;
-            text-align: center;
-            min-height: 20px;
-        }
-        .success { color: #0d7a3e; }
-        .error { color: #d93025; }
-        .hint {
-            font-size: 12px;
-            color: #999;
-            margin-top: 8px;
-            text-align: center;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grok 批量下载</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --text: #1f2328;
+      --muted: #656d76;
+      --accent: #1a73e8;
+      --accent-hover: #1557b0;
+      --ok: #0d7a3e;
+      --err: #d93025;
+      --warn: #b06000;
+      --border: #e6e8eb;
+      --track: #e8eaed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(120% 80% at 0% 0%, #e8f1ff 0%, transparent 55%),
+        radial-gradient(100% 70% at 100% 0%, #f0f7ff 0%, transparent 50%),
+        var(--bg);
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .info {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .info strong {
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      padding: 10px 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:focus-visible {
+      outline: 2px solid #8ab4f8;
+      outline-offset: 2px;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.secondary:hover:not(:disabled) {
+      background: #f3f4f6;
+    }
+    button.danger {
+      background: #fff;
+      color: var(--err);
+      border: 1px solid #f0c4c0;
+      display: none;
+    }
+    button.danger.visible { display: block; }
+    button.danger:hover:not(:disabled) { background: #fff5f4; }
+    .progress-wrap {
+      display: none;
+      margin-top: 12px;
+    }
+    .progress-wrap.visible { display: block; }
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .bar {
+      height: 8px;
+      background: var(--track);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #1a73e8, #4ea1ff);
+      border-radius: inherit;
+      transition: width 0.2s ease;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 13px;
+      text-align: center;
+      min-height: 18px;
+      line-height: 1.4;
+    }
+    #status.success { color: var(--ok); }
+    #status.error { color: var(--err); }
+    #status.warn { color: var(--warn); }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      text-align: center;
+      line-height: 1.45;
+    }
+    .hint a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .hint a:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
-<h3>📥 Grok 批量下载</h3>
-<div class="info">
-    📸 找到 <strong id="count">0</strong> 张图片
-</div>
-<button id="downloadBtn">⬇️ 下载全部图片</button>
-<div id="status"></div>
-<div class="hint">💡 请先滚动页面加载所有图片</div>
-<script src="popup.js"></script>
+  <h1>Grok 批量下载</h1>
+  <div class="info">
+    当前页面可下载 <strong id="count">0</strong> 张图片
+  </div>
+  <div class="actions">
+    <button id="downloadBtn" type="button">下载全部</button>
+    <button id="cancelBtn" class="danger" type="button">取消</button>
+  </div>
+  <div id="progressWrap" class="progress-wrap" aria-hidden="true">
+    <div class="progress-meta">
+      <span id="progressText">准备中…</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <i id="progressBar"></i>
+    </div>
+  </div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div class="hint">
+    下载前会自动滚动加载更多图片<br>
+    文件保存到下载目录下的 <code>grok_images</code><br>
+    <a id="openFiles" href="https://grok.com/files" target="_blank" rel="noopener noreferrer">打开 grok.com/files</a>
+  </div>
+  <script src="popup.js"></script>
 </body>
 </html>
