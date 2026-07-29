@@ -3,6 +3,16 @@ function setStatus(el, text, type = '') {
   el.className = type;
 }
 
+function phaseLabel(st) {
+  const done = st.done || 0;
+  const total = st.total || 0;
+  if (st.phase === 'fetch') return `拉取图片 ${done}/${total}`;
+  if (st.phase === 'pack') return '正在打包 ZIP…';
+  if (st.phase === 'save') return '保存 ZIP…';
+  if (st.running) return `处理中 ${done}/${total}`;
+  return `${done} / ${total}`;
+}
+
 function showProgress(wrap, bar, textEl, pctEl, done, total, label) {
   wrap.classList.add('visible');
   wrap.setAttribute('aria-hidden', 'false');
@@ -29,10 +39,13 @@ function runtimeSend(message) {
   });
 }
 
-function applyFinishedUi({ status, btn, cancelBtn, progressWrap, progressBar, progressText, progressPct }, msg) {
+function applyFinishedUi(ui, msg) {
+  const { status, downloadBtn, downloadSelectedBtn, cancelBtn, progressWrap, progressBar, progressText, progressPct } = ui;
   cancelBtn.classList.remove('visible');
-  btn.disabled = false;
-  btn.textContent = '下载全部';
+  downloadBtn.disabled = false;
+  downloadSelectedBtn.disabled = Number(ui.selectedCountEl.textContent || 0) <= 0;
+  downloadBtn.textContent = '下载全部';
+  downloadSelectedBtn.textContent = '下载已选';
 
   const parts = [`成功 ${msg.done || 0}`];
   if (msg.failed) parts.push(`失败 ${msg.failed}`);
@@ -53,7 +66,7 @@ function applyFinishedUi({ status, btn, cancelBtn, progressWrap, progressBar, pr
   if (msg.cancelled) {
     setStatus(status, `已取消（${parts.join('，')}）`, 'warn');
   } else if ((msg.done || 0) > 0) {
-    setStatus(status, `完成：${parts.join('，')}`, 'success');
+    setStatus(status, `完成：已打包 ${msg.done} 张到 1 个 ZIP${msg.failed ? `（失败 ${msg.failed}）` : ''}`, 'success');
   } else {
     setStatus(status, msg.error || '没有成功下载任何图片', 'error');
   }
@@ -80,24 +93,110 @@ async function ensureContentScript(tabId) {
   throw new Error('无法连接页面脚本，请刷新页面后重试');
 }
 
+async function getFilesTab() {
+  const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (active?.id && active.url && /^https:\/\/(www\.)?grok\.com\/files/i.test(active.url)) {
+    return active;
+  }
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  return tabs.find((t) => t.url && /^https:\/\/(www\.)?grok\.com\/files/i.test(t.url)) || null;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const btn = document.getElementById('downloadBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
   const cancelBtn = document.getElementById('cancelBtn');
   const status = document.getElementById('status');
   const countEl = document.getElementById('count');
+  const selectedCountEl = document.getElementById('selectedCount');
   const progressWrap = document.getElementById('progressWrap');
   const progressBar = document.getElementById('progressBar');
   const progressText = document.getElementById('progressText');
   const progressPct = document.getElementById('progressPct');
   const openFiles = document.getElementById('openFiles');
-  const ui = { status, btn, cancelBtn, progressWrap, progressBar, progressText, progressPct };
+  const ui = {
+    status,
+    downloadBtn,
+    downloadSelectedBtn,
+    cancelBtn,
+    progressWrap,
+    progressBar,
+    progressText,
+    progressPct,
+    selectedCountEl
+  };
 
   let pollTimer = null;
+  let countTimer = null;
+  let busy = false;
+  let tabId = null;
 
   const stopPoll = () => {
     if (pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
+    }
+  };
+
+  const setBusy = (value) => {
+    busy = value;
+    if (value) {
+      downloadBtn.disabled = true;
+      downloadSelectedBtn.disabled = true;
+    } else {
+      downloadBtn.disabled = false;
+      downloadSelectedBtn.disabled = Number(selectedCountEl.textContent || 0) <= 0;
+    }
+  };
+
+  const updateCounts = (response) => {
+    const total = response?.count || 0;
+    const selected = response?.selectedCount || 0;
+    countEl.textContent = String(total);
+    selectedCountEl.textContent = String(selected);
+    if (!busy) {
+      downloadSelectedBtn.disabled = selected <= 0;
+    }
+    return { total, selected, selectedUrlCount: response?.selectedUrlCount || 0 };
+  };
+
+  const refreshFromPage = async () => {
+    const tab = await getFilesTab();
+    if (!tab?.id) {
+      tabId = null;
+      countEl.textContent = '0';
+      selectedCountEl.textContent = '0';
+      if (!busy) {
+        downloadBtn.disabled = true;
+        downloadSelectedBtn.disabled = true;
+        setStatus(status, '请打开 grok.com/files 后再使用', 'error');
+      }
+      return null;
+    }
+
+    tabId = tab.id;
+    if (!busy) {
+      downloadBtn.disabled = false;
+    }
+
+    try {
+      const response = await ensureContentScript(tabId);
+      const counts = updateCounts(response);
+      if (!busy) {
+        if (counts.selected > 0 && counts.selectedUrlCount === 0) {
+          setStatus(status, `检测到已选 ${counts.selected} 项，正在匹配图片链接…可再点一次「下载已选」`, 'warn');
+        } else if (counts.selected > 0) {
+          setStatus(status, `已检测到 ${counts.selected} 项勾选，可下载已选。`, '');
+        } else if (!counts.total) {
+          setStatus(status, '未检测到图片。可先勾选文件，或点「下载全部」。', 'warn');
+        } else {
+          setStatus(status, '在页面勾选文件后，可点「下载已选」。', '');
+        }
+      }
+      return counts;
+    } catch (e) {
+      if (!busy) setStatus(status, e.message || '读取页面失败', 'error');
+      return null;
     }
   };
 
@@ -115,16 +214,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             progressPct,
             st.done,
             st.total,
-            `下载中 ${st.done}/${st.total}`
+            phaseLabel(st)
           );
         } else {
           stopPoll();
+          setBusy(false);
           applyFinishedUi(ui, st);
+          refreshFromPage();
         }
-      } catch (_) {
-        // SW 休眠时忽略，下一轮再试
-      }
+      } catch (_) {}
     }, 400);
+  };
+
+  const startDownload = async (urls, modeLabel) => {
+    cancelBtn.classList.add('visible');
+    showProgress(progressWrap, progressBar, progressText, progressPct, 0, urls.length, `拉取图片 0 / ${urls.length}`);
+    setStatus(status, `${modeLabel} ${urls.length} 张，将打包成 1 个 ZIP 下载。`, '');
+
+    const reply = await runtimeSend({ action: 'downloadAll', urls });
+    if (!reply?.started) {
+      setBusy(false);
+      applyFinishedUi(ui, {
+        done: 0,
+        failed: 0,
+        skipped: reply?.skipped || 0,
+        total: 0,
+        cancelled: false,
+        error: reply?.error || '无法启动下载'
+      });
+      return;
+    }
+    startPoll();
   };
 
   openFiles.addEventListener('click', (e) => {
@@ -132,32 +252,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.create({ url: 'https://grok.com/files' });
   });
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url || !/^https:\/\/(www\.)?grok\.com\/files/i.test(tab.url)) {
-    setStatus(status, '请在 grok.com/files 页面使用本扩展', 'error');
-    btn.disabled = true;
-    return;
-  }
+  await refreshFromPage();
 
-  try {
-    const response = await ensureContentScript(tab.id);
-    countEl.textContent = String(response.count || 0);
-    if (!response.count) {
-      setStatus(status, '未检测到图片。可先手动滚动加载，或直接点下载自动滚动。', 'warn');
-    }
-  } catch (e) {
-    setStatus(status, e.message || '初始化失败', 'error');
-    btn.disabled = true;
-    return;
-  }
+  countTimer = setInterval(() => {
+    if (!busy) refreshFromPage();
+  }, 1000);
+
+  chrome.tabs.onActivated.addListener(() => {
+    if (!busy) refreshFromPage();
+  });
+  chrome.tabs.onUpdated.addListener((id, info) => {
+    if (info.status === 'complete' && !busy) refreshFromPage();
+  });
 
   try {
     const st = await runtimeSend({ action: 'getDownloadStatus' });
     if (st?.running) {
-      btn.disabled = true;
+      setBusy(true);
       cancelBtn.classList.add('visible');
-      showProgress(progressWrap, progressBar, progressText, progressPct, st.done, st.total, `下载中 ${st.done}/${st.total}`);
-      setStatus(status, '下载进行中…关闭弹窗也会继续。', 'warn');
+      showProgress(progressWrap, progressBar, progressText, progressPct, st.done, st.total, phaseLabel(st));
+      setStatus(status, '下载进行中…', 'warn');
       startPoll();
     }
   } catch (_) {}
@@ -172,14 +286,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         progressPct,
         msg.done,
         msg.total,
-        `下载中 ${msg.done}/${msg.total}`
+        phaseLabel(msg)
       );
       cancelBtn.classList.add('visible');
-      btn.disabled = true;
+      setBusy(true);
     }
     if (msg.finished) {
       stopPoll();
+      setBusy(false);
       applyFinishedUi(ui, msg);
+      refreshFromPage();
     }
   });
 
@@ -195,17 +311,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    btn.textContent = '滚动加载中…';
+  downloadSelectedBtn.addEventListener('click', async () => {
+    setBusy(true);
+    downloadSelectedBtn.textContent = '读取勾选…';
+    setStatus(status, '正在读取页面勾选的图片…', '');
+    hideProgress(progressWrap);
+    cancelBtn.classList.remove('visible');
+    stopPoll();
+
+    try {
+      const tab = await getFilesTab();
+      if (!tab?.id) throw new Error('请先打开 grok.com/files');
+      tabId = tab.id;
+
+      await ensureContentScript(tabId);
+      const response = await chrome.tabs.sendMessage(tabId, { action: 'getSelectedImages' });
+      const err = chrome.runtime.lastError;
+      if (err) throw new Error(err.message);
+
+      const urls = response?.urls || [];
+      const selectedCount = response?.selectedCount || urls.length;
+      selectedCountEl.textContent = String(selectedCount);
+
+      if (!urls.length) {
+        const hint = response?.pageSelected
+          ? `页面显示已选 ${response.pageSelected}，但还没匹配到图片链接。请刷新 files 页面后重试。`
+          : '没有识别到勾选图片。请确认已勾选文件后再试。';
+        setStatus(status, hint, 'error');
+        downloadSelectedBtn.textContent = '下载已选';
+        setBusy(false);
+        return;
+      }
+
+      downloadSelectedBtn.textContent = '下载中…';
+      await startDownload(urls, '已选');
+    } catch (e) {
+      stopPoll();
+      setStatus(status, `错误：${e.message}`, 'error');
+      downloadSelectedBtn.textContent = '下载已选';
+      setBusy(false);
+      cancelBtn.classList.remove('visible');
+    }
+  });
+
+  downloadBtn.addEventListener('click', async () => {
+    setBusy(true);
+    downloadBtn.textContent = '滚动加载中…';
     setStatus(status, '正在自动滚动并收集图片…', '');
     hideProgress(progressWrap);
     cancelBtn.classList.remove('visible');
     stopPoll();
 
     try {
-      await ensureContentScript(tab.id);
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'getImages' });
+      const tab = await getFilesTab();
+      if (!tab?.id) throw new Error('请先打开 grok.com/files');
+      tabId = tab.id;
+
+      await ensureContentScript(tabId);
+      const response = await chrome.tabs.sendMessage(tabId, { action: 'getImages' });
       const err = chrome.runtime.lastError;
       if (err) throw new Error(err.message);
 
@@ -214,36 +377,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (!urls.length) {
         setStatus(status, '没有找到图片链接，请确认页面已加载出图片。', 'error');
-        btn.textContent = '下载全部';
-        btn.disabled = false;
+        downloadBtn.textContent = '下载全部';
+        setBusy(false);
         return;
       }
 
-      btn.textContent = '下载中…';
-      cancelBtn.classList.add('visible');
-      showProgress(progressWrap, progressBar, progressText, progressPct, 0, urls.length, `0 / ${urls.length}`);
-      setStatus(status, `找到 ${urls.length} 张，开始下载…关闭弹窗也会继续。`, '');
-
-      const reply = await runtimeSend({ action: 'downloadAll', urls });
-      if (!reply?.started) {
-        applyFinishedUi(ui, {
-          done: 0,
-          failed: 0,
-          skipped: reply?.skipped || 0,
-          total: 0,
-          cancelled: false,
-          error: reply?.error || '无法启动下载'
-        });
-        return;
-      }
-
-      startPoll();
+      downloadBtn.textContent = '下载中…';
+      await startDownload(urls, '共');
     } catch (e) {
       stopPoll();
       setStatus(status, `错误：${e.message}`, 'error');
-      btn.textContent = '下载全部';
-      btn.disabled = false;
+      downloadBtn.textContent = '下载全部';
+      setBusy(false);
       cancelBtn.classList.remove('visible');
     }
+  });
+
+  window.addEventListener('unload', () => {
+    stopPoll();
+    if (countTimer) clearInterval(countTimer);
   });
 });
